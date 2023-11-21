@@ -1,0 +1,10 @@
+---
+title: "p8105_hw6_hmz2105"
+author: Haley Zylberberg
+output: github_document
+
+---
+
+```{r setup}
+library (tidyverse)
+```
