@@ -7,4 +7,98 @@ output: github_document
 
 ```{r setup}
 library (tidyverse)
+set.seed(123)
+```
+
+## Problem 2
+
+In this problem, I will use Central Park weather data to create a simple linear regression with tmax as the response and tmin and prcp as the predictors. I use 5000 bootstrap samples to calculate r squared and log (B1*B2), and then plot the distribution of these estimates.
+
+First pull in weather data.
+
+```{r pull in weather data}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2022-01-01",
+    date_max = "2022-12-31") |>
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) |>
+  select(name, id, everything())
+```
+
+
+Next create a bootstrap with 5000 samples. Will create a dataframe that retains the r squared and the log(B1*B2) only.
+
+```{r create bootstrap}
+boot_sample = function(df) {
+  sample_frac(df, replace = TRUE)
+}
+
+boot_straps = 
+  tibble(strap_number = 1:5000) |> 
+  mutate(
+    strap_sample = map(strap_number, \(i) boot_sample(df = weather_df))
+  )
+
+bootstrap_results =
+  boot_straps |> 
+  mutate(
+    models = map(strap_sample, \(df) lm(tmax ~ tmin + prcp, data = df)),
+    results = map(models, broom::glance),
+    results2 = map(models, broom::tidy)
+  ) |> 
+  select(-strap_sample, -models) |> 
+  unnest(results, results2) 
+
+plot = bootstrap_results |> 
+  janitor::clean_names()|>
+  filter(term != "(Intercept)")|>
+  group_by(strap_number, r_squared) |> 
+summarize(log_product = log(prod(abs(estimate))))
+```
+
+Next will plot the distribution of r squared.
+
+```{r plot r squared}
+plot|>
+ggplot(aes(x = r_squared)) +
+    geom_density() +
+  labs(title = "Distribution of R-squared",
+       x = "R-squared",
+       y = "Frequency") +
+  theme_minimal()
+```
+
+ * The density plot of r squared values shows the distribution of the goodness of fit for the linear regression models. R squared measures the proportion of the variability in tmax that is explained by the predictors tmin and prcp. In this plot, the distribution is skewed to the left but overall appears mostly normal. As the values are relatively close to 1, the model has a high goodness of fit.
+
+
+Next will plot the distribution of  log(B1*B2).
+
+```{r plot log}
+plot|>
+ggplot(aes(x = log_product)) +
+  geom_density() +
+  labs(title = "Distribution of log(B1 * B2)",
+       x = "log(B1 * B2)",
+       y = "Frequency") +
+  theme_minimal()
+```
+
+* This density plot provides insights into the joint effect of the predictor variables (tmin and prcp) on tmax. This distribution is very skewed to the left. It appears that there is a joint effect between tmin and prcp.
+
+Next will make a table showing the 95% confidence levels for r squared and log (B1*B2).
+
+```{r 95% CI}
+confidence_intervals <- data.frame(
+  variable = c("r_squared", "log_product"),
+  lower_CI = c(quantile(pull(plot, r_squared), 0.025), quantile(pull(plot, log_product), 0.025)),
+  upper_CI = c(quantile(pull(plot, r_squared), 0.975), quantile(pull(plot, log_product), 0.975))
+)
+
+confidence_intervals|> 
+  knitr::kable()
 ```
