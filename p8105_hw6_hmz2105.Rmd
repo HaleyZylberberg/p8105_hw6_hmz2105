@@ -130,10 +130,10 @@ birthweight_df =
 
 The birthweight data has `r nrow(birthweight_df)` observations and `r ncol(birthweight_df)` variables named `r names(birthweight_df)`.
 
-Next, will create a linear regression model of birthweight. Will use the variables sex of baby (babysex), length of baby (blength), gestational age of baby (gaweeks), and average cigarettes mother smoked (smoken).
+Next, will create a linear regression model of birthweight. Will use the variables sex of baby (babysex), length of baby (blength), gestational age of baby (gaweeks), average cigarettes mother smoked (smoken), and mother's weight gain during pregnancy (wtgain).
 
 ```{r linear regression model}
-fit = lm(bwt ~ babysex + blength, gaweeks, smoken, data = birthweight_df)
+fit = lm(bwt ~ babysex + blength + gaweeks + smoken + wtgain, data = birthweight_df)
 
 fit |> 
  broom::tidy()
