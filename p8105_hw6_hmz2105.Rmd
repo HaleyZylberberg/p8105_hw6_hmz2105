@@ -102,3 +102,39 @@ confidence_intervals <- data.frame(
 confidence_intervals|> 
   knitr::kable()
 ```
+
+
+## Problem 3
+
+In this problem I will create a linear regression model looking at predictors of a child's birth weight using a dataset 4,342 children related variables. 
+
+First, I will import and clean the dataset, taking into acount recoding variables and creating factors.
+
+```{r import birthweight}
+birthweight_df = 
+  read_csv("data/birthweight.csv") |>
+    janitor::clean_names() |>
+  mutate(
+ babysex = case_match(
+    babysex, 2~ 'female', 1 ~ 'male'),
+ frace = case_match(
+    frace, 9~'Unknown', 8~'Other', 4~ 'Puerto Rican', 3~ 'Asian', 2~ 'Black', 1 ~ 'White'),
+  malform = case_match(
+   malform, 0~ 'absent', 1 ~ 'present'),
+ mrace = case_match(
+    mrace, 8~'Other', 4~ 'Puerto Rican', 3~ 'Asian', 2~ 'Black', 1 ~ 'White'),
+ frace = forcats::fct_relevel(frace, c("White", "Black", "Asian", "Puerto Rican", "Other")),
+  mrace = forcats::fct_relevel(mrace, c("White", "Black", "Asian", "Puerto Rican"))
+  )
+```
+
+The birthweight data has `r nrow(birthweight_df)` observations and `r ncol(birthweight_df)` variables named `r names(birthweight_df)`.
+
+Next, will create a linear regression model of birthweight. Will use the variables sex of baby (babysex), length of baby (blength), gestational age of baby (gaweeks), and average cigarettes mother smoked (smoken).
+
+```{r linear regression model}
+fit = lm(bwt ~ babysex + blength, gaweeks, smoken, data = birthweight_df)
+
+fit |> 
+ broom::tidy()
+```
