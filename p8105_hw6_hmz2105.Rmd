@@ -7,6 +7,7 @@ output: github_document
 
 ```{r setup}
 library (tidyverse)
+library(modelr)
 set.seed(123)
 ```
 
@@ -130,11 +131,87 @@ birthweight_df =
 
 The birthweight data has `r nrow(birthweight_df)` observations and `r ncol(birthweight_df)` variables named `r names(birthweight_df)`.
 
-Next, will create a linear regression model of birthweight. Will use the variables sex of baby (babysex), length of baby (blength), gestational age of baby (gaweeks), average cigarettes mother smoked (smoken), and mother's weight gain during pregnancy (wtgain).
+Next, will create a linear regression model of birthweight. Will use the variables sex of baby (babysex), length of baby (blength), gestational age of baby (gaweeks), average cigarettes mother smoked (smoken), and mother's weight gain during pregnancy (wtgain). Will choose these items as I anticipate that they will be factors that impact a child's weight. See below for a plot of the beta coefficients (estimates) and p values.
 
 ```{r linear regression model}
 fit = lm(bwt ~ babysex + blength + gaweeks + smoken + wtgain, data = birthweight_df)
 
 fit |> 
- broom::tidy()
+ broom::tidy() |>
+  knitr::kable()
 ```
+
+Model interpretations:
+* If the child is male (compared to being female), and all other predictors (gestational age, child length, average number of cigarettes of the mother, and weight gain of the mother during pregnancy) are held constant, the expected increase in the child's birth weight is 18.74 grams.
+* For every 1 cm increase in child length, and with all other predictors held constant, the expected increase in the child's birth weight is 124.52 grams.
+* For every additional 1 week of gestational age, and with all other predictors held constant, the expected increase in the child's birth weight is 26.26 grams.
+* For every additional 1 cigarette smoked per day by the mother, and with all other predictors held constant, the expected decrease in the child's birth weight is -2.846506 grams.
+* For every 1 pound  gained by the mother during pregnancy, and with all other predictors held constant, the expected increase in the child's birth weight is 4.54 grams.
+
+Next will plot fitted values vs residuals.
+
+```{r add model residuals and fitted values and plot}
+birthweight_df|> 
+  modelr::add_predictions(fit) |>
+   modelr::add_residuals(fit) |>
+  ggplot(aes(x = pred, y = resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs. Fitted Values",
+       x = "Fitted Values",
+       y = "Residuals")
+```
+
+In this plot, each point represents an observation. The red dashed line represents where residuals are zero and shows that for most points, the values are evenly distributed around zero. However, there appears to be outliers around 1000, 500, and around 5000 on the x axis.
+
+Next, fit two additional linear regression models. The model titled "fit_blength_gaweeks" uses predictors child length and gestational age. The model titled "fit_interactions" uses predictors child head size, child length and child sex and also takes into account the interaction between these predictors. See the table for the estimates from these two models.
+
+```{r compare my linear model to 2 others}
+fit_blength_gaweeks = lm(bwt ~blength + gaweeks, data = birthweight_df)
+
+fit_blength_gaweeks |> 
+ broom::tidy() |>
+  knitr::kable()
+
+fit_interactions = lm(bwt ~bhead*blength + bhead*babysex + blength*babysex + blength*bhead*babysex, data = birthweight_df)
+
+fit_interactions |> 
+ broom::tidy() |>
+  knitr::kable()
+```
+
+Next compare the models in terms of their ability to predict child's birth weight using cross validation. 
+
+```{r cross validation}
+cv_df = 
+  crossv_mc(birthweight_df, 100) 
+
+cv_df =
+  cv_df |> 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+cv_df = 
+  cv_df |> 
+  mutate(
+    fit_mod  = map(train, \(df) lm(bwt ~ babysex + blength + gaweeks + smoken + wtgain, data = df)),
+    fit2_mod  = map(train, \(df) lm(bwt ~blength + gaweeks, data = df)),
+    fit3_mod  = map(train, \(df) lm(bwt ~bhead*blength + bhead*babysex + blength*babysex + blength*bhead*babysex, data = df))) |> 
+  mutate(
+    rmse_fit = map2_dbl(fit_mod, test, \(mod, df) rmse(model = mod, data = df)),
+    rmse_fit2 = map2_dbl(fit2_mod, test, \(mod, df) rmse(model = mod, data = df)),
+    rmse_fit3 = map2_dbl(fit3_mod, test, \(mod, df) rmse(model = mod, data = df)))
+
+cv_df |> 
+  select(starts_with("rmse")) |> 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") |> 
+  mutate(model = fct_inorder(model)) |> 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+```
+
+It appears that the model that takes into account the interaction terms is the best model in terms of predictions based on RMSE. A lower RMSE indicates better model performance as it means that, on average, the model's predictions are closer to the observed values. 
