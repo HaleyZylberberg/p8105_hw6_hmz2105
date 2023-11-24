@@ -11,6 +11,81 @@ library(modelr)
 set.seed(123)
 ```
 
+## Problem 1
+
+This problem uses data that the Washington Post gathered on homicides in 50 large U.S. cities. 
+
+```{r import homicide data}
+homicide_df = 
+  read_csv("data_prob1/homicide-data.csv") |>
+    janitor::clean_names() |>
+    mutate(city_state = paste(city, state, sep = ", "))|>
+filter(!city_state %in% c("Tulsa, AL", "Dallas, TX", "Phoenix, AZ", "Kansas City, MO" ))|>
+  mutate(
+    solved_homicides = ifelse(disposition %in% c("Closed without arrest", "Open/No arrest"), 0, 1),
+    victim_age = as.numeric(victim_age)
+    )|>
+    filter(!is.na(victim_age), victim_race %in% c("Black", "White"))
+
+```
+
+The raw data includes year of homicide, homicide victim name, race, age and sex, city, state and lat/long of the homicide, and the status of the disposition. There are 'r nrow(homicide_df)` entries. The variables from Tulsa AL, Dallax TX,Kansas City, MO  and Phoneix AZ were removed as they do not include victim race. Also made a column with a binary variable of solved vs unsolved homicides. Will limit analysis to those for whom victim_race is white or black. Will make sure that victim_age is numeric (and remove missing values). 
+
+Next, for the city of Baltimore, MD, fit a logistic regression with resolved vs unresolved as the outcome and victim age, sex and race as predictors. Next obtain the estimate and confidence interval of the adjusted odds ratio for solving homicides comparing male victims to female victims keeping all other variables fixed.
+
+```{r linear regression model for Baltimore}
+
+bmd_homicide_df = homicide_df|>
+  filter(city_state == "Baltimore, MD") 
+
+fit_bmd = glm(solved_homicides ~ victim_age + victim_sex + victim_race, data = bmd_homicide_df, family = binomial())
+
+fit_bmd |> 
+ broom::tidy() |>
+   mutate(odds_ratio = exp(estimate),
+        lower_ci = exp(confint.default(fit_bmd)[, 1]),
+         upper_ci = exp(confint.default(fit_bmd)[, 2])) |>
+  select(term, estimate, odds_ratio, lower_ci, upper_ci) |>  
+  filter(term == "victim_sexMale")  |>
+  knitr::kable()
+```
+Interpretation: If the victim is male (compared to being female), the odds of a solved homicide decrease by approximately 0.4256 times, when all other predictors are held constant.
+
+Next create logistic regression models for each of the cities in your dataset, and extract the adjusted odds ratio (and CI) for solving homicides comparing male victims to female victims.
+
+```{r linear regression model for all cities}
+fit_logistic <- function(x) {
+  fit = glm(solved_homicides ~ victim_age + victim_sex + victim_race, 
+      data = x, family = binomial())
+  
+  fit |>
+    broom::tidy() |>
+    mutate(odds_ratio = exp(estimate),
+        lower_ci = exp(confint.default(fit)[, 1]),
+         upper_ci = exp(confint.default(fit)[, 2]))
+}
+
+homicide_OR_df <- homicide_df |>
+  nest_by(city_state) |>
+  mutate(logistic_result = map(list(data), fit_logistic)) |>
+  unnest(logistic_result) |>
+  filter(term == "victim_sexMale")|>
+  select(estimate, odds_ratio, lower_ci, upper_ci)
+```
+
+Next, create a plot that shows the estimated ORs and CIs for each city. 
+
+```{r plot homicide estimates}
+homicide_OR_df |>
+  ggplot(aes(x = reorder(city_state, -odds_ratio), y = odds_ratio)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci)) +
+  theme(axis.text.x = element_text(angle = 65, hjust = 1))+
+  labs(x = "City State", y = "Odds Ratio for Males vs Females")
+```
+
+This plot shows the odds of a solved homicide in males compared to females when all other variables in the model are held constant. The odds of a homicide being solved in males (compared to females) is highest in Albuquerque, NM and lowest in New York, NY. 
+
 ## Problem 2
 
 In this problem, I will use Central Park weather data to create a simple linear regression with tmax as the response and tmin and prcp as the predictors. I use 5000 bootstrap samples to calculate r squared and log (B1*B2), and then plot the distribution of these estimates.
