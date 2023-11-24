@@ -142,10 +142,15 @@ fit |>
 ```
 
 Model interpretations:
+
 * If the child is male (compared to being female), and all other predictors (gestational age, child length, average number of cigarettes of the mother, and weight gain of the mother during pregnancy) are held constant, the expected increase in the child's birth weight is 18.74 grams.
+
 * For every 1 cm increase in child length, and with all other predictors held constant, the expected increase in the child's birth weight is 124.52 grams.
+
 * For every additional 1 week of gestational age, and with all other predictors held constant, the expected increase in the child's birth weight is 26.26 grams.
+
 * For every additional 1 cigarette smoked per day by the mother, and with all other predictors held constant, the expected decrease in the child's birth weight is -2.846506 grams.
+
 * For every 1 pound  gained by the mother during pregnancy, and with all other predictors held constant, the expected increase in the child's birth weight is 4.54 grams.
 
 Next will plot fitted values vs residuals.
